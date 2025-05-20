@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 Automated Microservice Deployment to AKS using Azure DevOps, Terraform, Helm, Docker, ACR, and ArgoCD
 This project automates the deployment of a microservice-based application to Azure Kubernetes Service (AKS) using an Azure DevOps pipeline. The pipeline leverages multiple technologies such as Terraform, Helm, Docker, Azure Container Registry (ACR), and ArgoCD.
 
