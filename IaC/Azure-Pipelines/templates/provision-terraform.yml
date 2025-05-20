@@ -1,0 +1,33 @@
+parameters:
+- name: servicePrincipalId
+- name: servicePrincipalKey
+- name: subscriptionId
+- name: environment 
+- name: resourceGroupName
+- name: storageAccountName
+- name: terraformK8sContainerName
+- name: scriptsDirectory
+- name: tenantId
+- name: location
+
+
+stages: 
+  - stage: ProvisionTerraformRequirements
+    displayName: 'Create Required Azure ${{ parameters.environment }} Resources for Terraform'
+    jobs:
+    - job: CreateRequiredResources
+      steps:
+      - task: Bash@3
+        displayName: 'Create Resource Group and Storage Account for Terraform if not exists'
+        inputs:
+          targetType: 'filePath'
+          filePath: "$(System.DefaultWorkingDirectory)/${{ parameters.scriptsDirectory }}/provisionTerraform.sh"
+        env:
+            servicePrincipalId: ${{ parameters.servicePrincipalId }}
+            servicePrincipalKey: ${{ parameters.servicePrincipalKey }}
+            subscriptionId: ${{ parameters.subscriptionId }}
+            tenantId: ${{ parameters.tenantId }}
+            location: ${{ parameters.location }}
+            resourceGroupName: ${{ parameters.resourceGroupName }}
+            storageAccountName: ${{ parameters.storageAccountName }}
+            terraformK8sContainerName: ${{ parameters.terraformK8sContainerName }}

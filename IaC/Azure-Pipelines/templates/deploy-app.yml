@@ -1,0 +1,107 @@
+parameters:
+- name: environment
+  type: string
+- name: projectName
+  type: string
+- name: commandOptionsArguements
+  type: string
+- name: environmentServiceName
+  type: string
+- name: terraformDirectory
+  type: string
+- name: helmDirectory
+  type: string
+- name: scriptsDirectory
+  type: string
+- name: azureServicePrincipal
+  type: string
+- name: terraformResourceGroup
+  type: string
+- name: terraformStorageAccountName
+  type: string
+- name: terraformK8sContainerName
+  type: string
+- name: datadogAPIKey
+  type: string
+- name: clusterName
+  type: string
+- name: location 
+  type: string
+- name: region
+  type: string
+
+
+stages: 
+  - stage: DeploymyApp
+    dependsOn: 
+    - DeployCluster
+    - PrepareCluster
+    variables: 
+        aks_client_id: $[stageDependencies.DeployCluster.DeployCluster.outputs['readTfOutputs.aks_client_id']] 
+        aks_identity_tenant_id: $[stageDependencies.DeployCluster.DeployCluster.outputs['readTfOutputs.aks_identity_tenant_id']] 
+        aks_name: $[stageDependencies.DeployCluster.DeployCluster.outputs['readTfOutputs.aks_name']] 
+        aks_object_id: $[stageDependencies.DeployCluster.DeployCluster.outputs['readTfOutputs.aks_object_id']] 
+        aks_oicd_url: $[stageDependencies.DeployCluster.DeployCluster.outputs['readTfOutputs.aks_oicd_url']] 
+        key_vault_url: $[stageDependencies.DeployCluster.DeployCluster.outputs['readTfOutputs.key_vault_url']] 
+        userAssignedID: $[stageDependencies.DeployCluster.DeployCluster.outputs['readTfOutputs.userAssignedID']] 
+        userAssignedName: $[stageDependencies.DeployCluster.DeployCluster.outputs['readTfOutputs.userAssignedName']] 
+        userAssignedPrincipalID: $[stageDependencies.DeployCluster.DeployCluster.outputs['readTfOutputs.userAssignedPrincipalID']] 
+    displayName: 'Deploy myApp'
+    jobs:
+    - job: DeploymyApp
+      steps:
+      # >>>>>> Install azCLI, kubectl, and kubelogin 
+      - task: Bash@3
+        displayName: 'Install azCli, kubectl & kubelogin'
+        inputs:
+          targetType: 'filePath'
+          filePath: "$(System.DefaultWorkingDirectory)/${{ parameters.scriptsDirectory }}/installAzCliKubeLogin.sh"
+
+      # >>>>>> Login to AKS and run kubectl get nodes
+      - task: Bash@3
+        displayName: 'Login to AKS'
+        inputs:
+          targetType: 'filePath'
+          filePath: "$(System.DefaultWorkingDirectory)/${{ parameters.scriptsDirectory }}/aksLogin.sh"
+        env:
+          servicePrincipalId: $(servicePrincipalId)
+          servicePrincipalKey: $(servicePrincipalKey)
+          tenantId: $(tenantId)
+          subscriptionId: $(subscriptionId)
+          terraformResourceGroup: ${{ parameters.terraformResourceGroup }}
+          clusterName: ${{ parameters.clusterName }}
+
+      # >>>>>> Create SA for myApp secret store to access AKV
+      - task: Bash@3
+        displayName: 'Create myApp SA for secret store to access AKV'
+        inputs:
+          targetType: 'filePath'
+          filePath: "$(System.DefaultWorkingDirectory)/${{ parameters.scriptsDirectory }}/deploymyApp.sh"
+        env:
+          environment: ${{ parameters.environment }}
+          tenantId: $(tenantId)
+          aks_oicd_url: $(aks_oicd_url)
+          userAssignedName: $(userAssignedName)
+          terraformResourceGroup: ${{ parameters.terraformResourceGroup }}
+
+
+      # >>>>>> Integrate myApp App with AKV
+      - task: Bash@3
+        displayName: 'Integrate myApp App with AKV'
+        inputs:
+          targetType: 'filePath'
+          filePath: "$(System.DefaultWorkingDirectory)/${{ parameters.scriptsDirectory }}/myAppSecretProvider.sh"
+        env:
+          userAssignedID: $(userAssignedID)
+          kvName: $(kv_name)
+          key_vault_url: $(key_vault_url)
+          environment: ${{ parameters.environment }}
+          aksIdentityTenantId: $(aks_identity_tenant_id)
+
+
+      # >>>>>> Create myApp ArgoCD Application
+      - script: |
+          kubectl apply -f ArgoCD/applicationsets/myApp.yaml
+        name: createmyAppArgoApp
+        displayName: 'Create myApp ArgoCD Application'
+

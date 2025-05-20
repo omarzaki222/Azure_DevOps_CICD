@@ -1,0 +1,11 @@
+variable "projectName" {}
+variable "environment" {}
+variable "location" {}
+variable "pipelineURI" {}
+variable "resourceGroupName" {}
+variable "aks_administrators_group_id" {}
+variable "client_id" {}
+variable "client_secret" {}
+variable "tenant_id" {}
+variable "subscription_id" {}
+variable "region" {}

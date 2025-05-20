@@ -1,0 +1,58 @@
+parameters:
+- name: environment
+  type: string
+- name: azureContainerRegistryLoginServer
+  type: string
+- name: azureContainerRegistryId 
+  type: string
+- name: azureServicePrincipal
+  type: string
+- name: project
+  type: string
+
+stages:
+-   stage: BuildPushDockerImages
+    displayName: 'Build Push Docker Images'
+    jobs:
+    
+        # >>>>>>>>>>>>>>>>>>> Build & Push Policy Docker Image  >>>>>>>>>>>>>>>>>>>>>>>>> 
+    -   job: BuildPushMyApp
+        steps:
+        - checkout: self
+        - checkout: git://myApp
+
+
+            # Build myApp Services Docker Images
+        -   task: DockerCompose@1
+            displayName: 'Build myApp Services'
+            retryCountOnTaskFailure: '3'
+            inputs:
+                containerregistrytype: 'Azure Container Registry' 
+                azureSubscription: ${{ parameters.azureServicePrincipal }}
+                azureContainerRegistry: >
+                    {
+                        "loginServer":"${{ parameters.azureContainerRegistryLoginServer }}", 
+                        "id" : "${{ parameters.azureContainerRegistryId }}"
+                    }
+                dockerComposeFile: 'myApp/docker-compose.yml'
+                action: 'Build services'
+                additionalImageTags: |
+                    $(tag)
+                projectName: '${{ lower(parameters.project) }}'
+
+            # Push myApp Services Docker Images
+        -   task: DockerCompose@1
+            displayName: 'Push myApp Services'
+            inputs:
+                containerregistrytype: 'Azure Container Registry'
+                azureSubscription: ${{ parameters.azureServicePrincipal }}
+                azureContainerRegistry: >
+                    {
+                        "loginServer":"${{ parameters.azureContainerRegistryLoginServer }}", 
+                        "id" : "${{ parameters.azureContainerRegistryId }}"
+                    }
+                dockerComposeFile: 'myApp/docker-compose.yml'
+                action: 'Push services'
+                additionalImageTags: |
+                    $(tag)
+                projectName: '${{ lower(parameters.project) }}'

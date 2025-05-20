@@ -1,0 +1,109 @@
+name: deploy-infrastructure
+
+trigger: none
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+- name: projectName
+  value: 'myApp'
+- name: environment
+  ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/main') }}:
+    value: dev
+  ${{ elseif contains(variables['Build.SourceBranch'], 'rc/') }}:
+    value: rc      
+  ${{ elseif contains(variables['Build.SourceBranch'], 'release/') }}:
+    value: prod
+  ${{ else }}: 
+    value: dev
+- name: azureServicePrincipal
+  value: 'azureServicePrincipal'
+- name: terraformStorageAccountName
+  value: 'terraformStorageAccount'
+- name: terraformK8sContainerName
+  value: 'tfstate'
+- name: tf-module-version
+  value: "0.0.74"
+- name: unimodulepackage
+  value: aks-modules
+- name: location
+  value: 'East US'
+- name: region
+  value: 'eastus'
+- name: terraformDirectory
+  value: 'Terraform'
+- name: helmDirectory
+  value: 'Helm'
+- name: scriptsDirectory
+  value: 'Scripts'
+- name: pipelineURI
+  value: "$(System.CollectionUri)$(System.TeamProject)/_build?definitionId=$(System.DefinitionId)"
+
+stages:
+  - template: templates/provision-terraform.yml
+    parameters:
+      environment: '$(environment)'
+      servicePrincipalId: '$(servicePrincipalId)'
+      servicePrincipalKey: '$(servicePrincipalKey)'
+      subscriptionId: '$(subscriptionId)'
+      resourceGroupName: '$(projectName)-aks-$(environment)-rg'
+      storageAccountName: '$(projectName)aks$(environment)'
+      terraformK8sContainerName: '$(terraformK8sContainerName)'
+      scriptsDirectory: '$(scriptsDirectory)'
+      tenantId: '$(tenantId)'
+      location: '$(region)'
+
+  - template: templates/deploy-cluster.yml
+    parameters:
+      projectName: '$(projectName)'
+      environment: '$(environment)'
+      azureServicePrincipal: '$(azureServicePrincipal)'
+      environmentServiceName: '$(environmentServiceName)-$(environment)'
+      terraformResourceGroup: '$(projectName)-aks-$(environment)-rg'
+      terraformStorageAccountName: '$(terraformStorageAccountName)'
+      terraformK8sContainerName: '$(terraformK8sContainerName)'
+      datadogAPIKey: '$(datadogAPIKey)'
+      clusterName: '$(projectName)-aks-$(environment)'
+      location: '$(location)'
+      region: '$(region)'
+      terraformDirectory: $(terraformDirectory)
+      helmDirectory: $(helmDirectory)
+      scriptsDirectory: '$(scriptsDirectory)'
+      commandOptionsArguements: '-var-file="environments/$(environment).tfvars"'
+
+  - template: templates/prepare-cluster.yml
+    parameters:
+      projectName: '$(projectName)'
+      environment: '$(environment)'
+      azureServicePrincipal: '$(azureServicePrincipal)'
+      environmentServiceName: '$(environmentServiceName)-$(environment)'
+      terraformResourceGroup: '$(projectName)-aks-$(environment)-rg'
+      terraformStorageAccountName: '$(terraformStorageAccountName)'
+      terraformK8sContainerName: '$(terraformK8sContainerName)'
+      datadogAPIKey: '$(datadogAPIKey)'
+      clusterName: '$(projectName)-aks-$(environment)'
+      location: '$(location)'
+      region: '$(region)'
+      terraformDirectory: $(terraformDirectory)
+      helmDirectory: $(helmDirectory)
+      scriptsDirectory: '$(scriptsDirectory)'
+      commandOptionsArguements: '-var-file="environments/$(environment).tfvars"'
+  
+  - template: templates/deploy-app.yml
+    parameters:
+      projectName: '$(projectName)'
+      environment: '$(environment)'
+      azureServicePrincipal: '$(azureServicePrincipal)'
+      environmentServiceName: '$(environmentServiceName)-$(environment)'
+      terraformResourceGroup: '$(projectName)-aks-$(environment)-rg'
+      terraformStorageAccountName: '$(terraformStorageAccountName)'
+      terraformK8sContainerName: '$(terraformK8sContainerName)'
+      datadogAPIKey: '$(datadogAPIKey)'
+      clusterName: '$(projectName)-aks-$(environment)'
+      location: '$(location)'
+      region: '$(region)'
+      terraformDirectory: $(terraformDirectory)
+      helmDirectory: $(helmDirectory)
+      scriptsDirectory: '$(scriptsDirectory)'
+      commandOptionsArguements: '-var-file="environments/$(environment).tfvars"'

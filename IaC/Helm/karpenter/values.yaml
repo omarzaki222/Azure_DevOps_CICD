@@ -1,0 +1,50 @@
+replicas: 1 # for better debugging experience
+controller:
+  env:
+    - name: FEATURE_GATES
+      value: Drift=true
+    - name: LEADER_ELECT # disable leader election for better debugging / troubleshooting experience
+      value: "false"
+    # disable HTTP/2 to reduce ARM throttling on large-scale tests;
+    # with this in place write (and read) QPS can be increased too
+    #- name: GODEBUG
+    #  value: http2client=0
+
+    # options
+    - name: CLUSTER_NAME
+      value: enterprise-aks-prod
+    - name: CLUSTER_ENDPOINT
+      value: https://rg-aks-prod-gg6imcgy.hcp.eastus.azmk8s.io:443
+    - name: KUBELET_BOOTSTRAP_TOKEN
+      value: 7re136.owybfechayozjn64
+    - name: SSH_PUBLIC_KEY
+      value: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDPUuGpUd+zcCCa7wqDGe8FJ9fbx2Iia6S9eZVNiDcBQsYPejjkTOX4QpD63vFPWI0PKX5lP2iiDjx3GwlI+pCS/MwOGVDne+1lfMROAcxZVWZrxzQhM8af5n26BHUGikGQ5ubQuqJBnR8m6m4VJm5vS87Tyum7nv3pZh5VVm5MEiapNu6wadYhoY3PXtnbzRAk5CTLH5hU2GJkhpqJr/qWwPcokS7C7z9PiiIYbKx6cuVARwLSomp5iC+oIPZrMR17wg8b8zG7yNFXiuMGxWAhaTsOjBjVrSR5cqqr1zFuYwRDRqDS7O6R4oZlUaOd9DgbXeCCYG++ZUoeurmsDVKriXoaJM9HC666nPgzyIAbtgsCYfGuhRMHBD0RbZx7snjN6pfdTi1G6LfAKWroEXEhzY11UzUy9Y7lT9TUuiwqIzZXG3p4SbpBNOr7hl3CCSpjcUqSoLS22LZQpyP5IY3uimc8sTkqiPYn+4erELFeM1taXaTnwh0bDKkHin51tqs= zaki@ASUS-TUF azureuser"
+    - name: NETWORK_PLUGIN
+      value: "azure"
+    - name: NETWORK_POLICY
+      value: ""
+    - name: VNET_SUBNET_ID
+      value: /subscriptions/f207c0bd-3fbc-482f-b518-b357e76a262c/resourceGroups/enterprise-aks-prod-rg/providers/Microsoft.Network/virtualNetworks/enterprise-aks-prod-vnet/subnets/enterprise-aks-prod-subnet
+    - name: NODE_IDENTITIES
+      value: /subscriptions/f207c0bd-3fbc-482f-b518-b357e76a262c/resourcegroups/MC_enterprise-aks-prod-rg_enterprise-aks-prod_eastus/providers/Microsoft.ManagedIdentity/userAssignedIdentities/enterprise-aks-prod-agentpool
+
+    # Azure client settings
+    - name: ARM_SUBSCRIPTION_ID
+      value: f207c0bd-3fbc-482f-b518-b357e76a262c
+    - name: LOCATION
+      value: eastus
+    # settings for managed workload identity
+    - name: ARM_USE_CREDENTIAL_FROM_ENVIRONMENT
+      value: "true"
+    - name: ARM_USE_MANAGED_IDENTITY_EXTENSION
+      value: "false"
+    - name: ARM_USER_ASSIGNED_IDENTITY_ID
+      value: ""
+    - name: AZURE_NODE_RESOURCE_GROUP
+      value: test
+serviceAccount:
+  name: karpenter
+  annotations:
+    azure.workload.identity/client-id: bea39e17-6d33-4480-aca4-9d682462688c
+podLabels:
+  azure.workload.identity/use: "true"

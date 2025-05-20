@@ -1,0 +1,66 @@
+parameters:
+- name: environment
+  type: string
+- name: azureDevOpsRepo
+  type: string
+- name: azureContainerRegistryLoginServer
+  type: string
+- name: azureContainerRegistryId 
+  type: string
+- name: acrServiceConnection
+  type: string
+- name: project
+  type: string
+
+
+stages:
+-   stage: UpdateMyAppInGitOpsCD
+    displayName: 'Update the image tag of MyApp in gitOps-CD'
+    dependsOn: BuildPushDockerImages
+    jobs:
+    -   job: CloneAndUpdateGitOpsCD
+        steps:
+        -   task: Bash@3
+            displayName: 'Git Clone and Update myApp'
+            inputs:
+                targetType: 'inline'
+                script: |
+                    cd ..
+                    # Set System.AccessToken as an environment variable
+                    # Clone the repository
+                    git clone https://$ACCESS_TOKEN@$azureDevOpsRepo
+
+                    ls -al
+                    cd gitOps-CD
+                    ls -al
+                    git pull 
+
+                    echo "Change directory to $(project)-app" 
+                    cd ArgoCD/applications/$(project)-$(environment)
+
+                    echo "List contents of the $(project)-$(environment) directory" 
+                    ls -la
+
+                    # Configure global user email and name
+                    git config --global user.email "adoagent@pipeline"
+                    git config --global user.name "adoagent"
+
+                    sed -n '20,25p' policy-svc-deploy.yml
+                    yq eval -i '.spec.template.spec.containers[0].image = "'${azureContainerRegistryLoginServer}'/'${project}':'${tag}'"' myApp.yaml
+                    sed -n '20,23p' policy-svc-deploy.yml
+                    echo "$(project) service $(environment) image tag updated" 
+                    
+
+                    cd ../../..
+                    git add .
+                    git commit -m "Edit tag value for $(project) $(environment) to $(azureContainerRegistryLoginServer)-$(project):$(tag)"
+                    git push origin main
+                    git push https://$ACCESS_TOKEN@$azureDevOpsRepo
+
+            env:
+                ACCESS_TOKEN: $(System.AccessToken)
+                azureDevOpsRepo: ${{ parameters.azureDevOpsRepo }}
+                azureContainerRegistryLoginServer: ${{ parameters.azureContainerRegistryLoginServer }}
+                environment: ${{ parameters.environment }}
+                project: ${{ parameters.project }}
+                tag: $(tag)

@@ -1,0 +1,112 @@
+parameters:
+- name: environment
+  type: string
+- name: projectName
+  type: string
+- name: commandOptionsArguements
+  type: string
+- name: environmentServiceName
+  type: string
+- name: terraformDirectory
+  type: string
+- name: helmDirectory
+  type: string
+- name: scriptsDirectory
+  type: string
+- name: azureServicePrincipal
+  type: string
+- name: terraformResourceGroup
+  type: string
+- name: terraformStorageAccountName
+  type: string
+- name: terraformK8sContainerName
+  type: string
+- name: datadogAPIKey
+  type: string
+- name: clusterName
+  type: string
+- name: location 
+  type: string
+- name: region
+  type: string
+
+
+stages: 
+  - stage: DeployCluster
+    displayName: 'Deploy Cluster'
+    jobs:
+    - job: DeployCluster
+      steps:
+      - task: UniversalPackages@0
+        displayName: Download a Universal Package
+        inputs:
+          command: download
+          vstsFeed: 'Capstone'
+          vstsFeedPackage: $(unimodulepackage)
+          vstsPackageVersion: $(tf-module-version)
+          downloadDirectory: '$(System.DefaultWorkingDirectory)/Terraform'
+
+      - task: TerraformInstaller@0
+        inputs:
+          terraformVersion: 'latest'
+        displayName: 'Installing Terraform'
+
+      - task: TerraformTaskV2@2
+        displayName: 'Terraform Init'
+        inputs:
+          provider: 'azurerm'
+          command: 'init'
+          ensureBackend: true 
+          workingDirectory: '${{ parameters.terraformDirectory }}/'
+          backendServiceArm: '${{ parameters.azureServicePrincipal }}'
+          backendAzureRmResourceGroupName: '${{ parameters.terraformResourceGroup }}'
+          backendAzureRmStorageAccountName: '${{ parameters.terraformStorageAccountName }}'
+          backendAzureRmContainerName: '${{ parameters.terraformK8sContainerName }}'
+          backendAzureRmKey: '${{parameters.projectName}}-${{ parameters.environment }}.tfstate'
+
+      - task: TerraformTaskV3@3
+        displayName: 'Terraform Plan'
+        inputs:
+          provider: 'azurerm'
+          command: 'plan'
+          workingDirectory: '${{ parameters.terraformDirectory }}/'
+          environmentServiceNameAzureRM: '${{ parameters.azureServicePrincipal }}'
+          environmentServiceName: '${{ parameters.environmentServiceName }}'
+          commandOptions: >
+            -out ${{ parameters.projectName }}.tfplan 
+            -input=false 
+            -var="pipelineURI=$(System.CollectionUri)$(System.TeamProject)/_build?definitionId=$(System.DefinitionId)"
+            -var="client_id=$(servicePrincipalId)"
+            -var="client_secret=$(servicePrincipalKey)"
+            -var="tenant_id=$(tenantId)"
+            -var="subscription_id=$(subscriptionId)"
+            -var="aks_administrators_group_id=$(aksAdministratorsGroupId)"
+            -var="environment=${{ parameters.environment }}"
+            -var="location=${{ parameters.location }}"
+            -var="projectName=${{ parameters.projectName }}"
+            -var="region=${{ parameters.region }}"
+            -var="resourceGroupName=${{ parameters.terraformResourceGroup }}"
+            ${{ parameters.commandOptionsArguements }}
+
+      - task: TerraformTaskV2@2
+        name: terraformApply
+        displayName: 'Terraform Apply'
+        inputs:
+          provider: 'azurerm'
+          command: 'apply'
+          workingDirectory: '${{ parameters.terraformDirectory }}/'
+          commandOptions: '${{ parameters.projectName }}.tfplan'
+          environmentServiceNameAzureRM: '${{ parameters.azureServicePrincipal }}'
+
+      # >>>>>> Read Terraform Outputs 
+
+      - task: Bash@3
+        name: readTfOutputs
+        displayName: 'Read TF Outputs and set as Env Var'
+        inputs:
+          targetType: 'filePath'
+          filePath: "$(System.DefaultWorkingDirectory)/${{ parameters.scriptsDirectory }}/readTerraformOutputs.sh"
+        env:
+          scriptsDirectory: '${{ parameters.scriptsDirectory }}'
+          jsonOutputVariablesPath: '$(terraformApply.jsonOutputVariablesPath)'
+      

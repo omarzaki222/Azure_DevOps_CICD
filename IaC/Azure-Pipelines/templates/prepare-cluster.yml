@@ -1,0 +1,118 @@
+parameters:
+- name: environment
+  type: string
+- name: projectName
+  type: string
+- name: commandOptionsArguements
+  type: string
+- name: environmentServiceName
+  type: string
+- name: terraformDirectory
+  type: string
+- name: helmDirectory
+  type: string
+- name: scriptsDirectory
+  type: string
+- name: azureServicePrincipal
+  type: string
+- name: terraformResourceGroup
+  type: string
+- name: terraformStorageAccountName
+  type: string
+- name: terraformK8sContainerName
+  type: string
+- name: datadogAPIKey
+  type: string
+- name: clusterName
+  type: string
+- name: location 
+  type: string
+- name: region
+  type: string
+
+
+stages: 
+  - stage: PrepareCluster
+    dependsOn: DeployCluster
+    variables: 
+        aks_client_id: $[stageDependencies.DeployCluster.DeployCluster.outputs['readTfOutputs.aks_client_id']] 
+        aks_identity_tenant_id: $[stageDependencies.DeployCluster.DeployCluster.outputs['readTfOutputs.aks_identity_tenant_id']] 
+        aks_name: $[stageDependencies.DeployCluster.DeployCluster.outputs['readTfOutputs.aks_name']] 
+        aks_object_id: $[stageDependencies.DeployCluster.DeployCluster.outputs['readTfOutputs.aks_object_id']] 
+        aks_oicd_url: $[stageDependencies.DeployCluster.DeployCluster.outputs['readTfOutputs.aks_oicd_url']] 
+        key_vault_url: $[stageDependencies.DeployCluster.DeployCluster.outputs['readTfOutputs.key_vault_url']] 
+        userAssignedID: $[stageDependencies.DeployCluster.DeployCluster.outputs['readTfOutputs.userAssignedID']] 
+        userAssignedName: $[stageDependencies.DeployCluster.DeployCluster.outputs['readTfOutputs.userAssignedName']] 
+        userAssignedPrincipalID: $[stageDependencies.DeployCluster.DeployCluster.outputs['readTfOutputs.userAssignedPrincipalID']] 
+    displayName: 'Prepare Cluster'
+    jobs:
+    - job: PrepareCluster
+      steps:
+      # >>>>>> Install azCLI, kubectl, and kubelogin 
+      - task: Bash@3
+        displayName: 'Install azCli, kubectl & kubelogin'
+        inputs:
+          targetType: 'filePath'
+          filePath: "$(System.DefaultWorkingDirectory)/${{ parameters.scriptsDirectory }}/installAzCliKubeLogin.sh"
+
+      # >>>>>> Login to AKS and run kubectl get nodes
+      - task: Bash@3
+        displayName: 'Login to AKS'
+        inputs:
+          targetType: 'filePath'
+          filePath: "$(System.DefaultWorkingDirectory)/${{ parameters.scriptsDirectory }}/aksLogin.sh"
+        env:
+          servicePrincipalId: $(servicePrincipalId)
+          servicePrincipalKey: $(servicePrincipalKey)
+          tenantId: $(tenantId)
+          subscriptionId: $(subscriptionId)
+          terraformResourceGroup: ${{ parameters.terraformResourceGroup }}
+          clusterName: ${{ parameters.clusterName }}
+
+      # >>>>>> Install Ngnix Ingress Controller
+      - task: Bash@3
+        displayName: 'Install Nginx Ingress Controller'
+        inputs:
+          targetType: 'filePath'
+          filePath: "$(System.DefaultWorkingDirectory)/${{ parameters.scriptsDirectory }}/nginxIngressController.sh"
+
+      # >>>>>> Install helm-cli and deploy ArgoCD helm chart
+      - task: Bash@3
+        displayName: 'Install Helm & Deploy ArgoCD'
+        inputs:
+          targetType: 'filePath'
+          filePath: "$(System.DefaultWorkingDirectory)/${{ parameters.scriptsDirectory }}/deployArgoCD.sh"
+        env:
+          helmDirectory: '${{ parameters.helmDirectory }}'
+
+      # >>>>>> Install helm-cli and deploy DataDog helm chart
+      - task: Bash@3
+        displayName: 'Deploy DataDog Agent'
+        inputs:
+          targetType: 'filePath'
+          filePath: "$(System.DefaultWorkingDirectory)/${{ parameters.scriptsDirectory }}/deployDatadogAgent.sh"
+        env:
+          helmDirectory: ${{ parameters.helmDirectory }}
+          datadogAPIKey: ${{ parameters.datadogAPIKey }}
+
+      # >>>>>> Install/Configure Karpenter
+      - task: Bash@3
+        displayName: 'Install/Configure Karpenter'
+        inputs:
+          targetType: 'filePath'
+          filePath: "$(System.DefaultWorkingDirectory)/${{ parameters.scriptsDirectory }}/installConfigureKarpenter.sh"
+        env:
+          helmDirectory: ${{ parameters.helmDirectory }}
+          userAssignedID: $(userAssignedID)
+          tenantId: $(tenantId)
+          userAssignedName: $(userAssignedName)
+          terraformResourceGroup: ${{ parameters.terraformResourceGroup }}
+          namespace: karpenter
+          servicePrincipalId: $(servicePrincipalId)
+          servicePrincipalKey: $(servicePrincipalKey)
+          subscriptionId: $(subscriptionId)
+          aks_name: $(aks_name)
+          region: ${{ parameters.region }}
+          userAssignedPrincipalID: $(userAssignedPrincipalID)
+          DefaultWorkingDirectory: $(System.DefaultWorkingDirectory)
+          aks_oicd_url: $(aks_oicd_url)

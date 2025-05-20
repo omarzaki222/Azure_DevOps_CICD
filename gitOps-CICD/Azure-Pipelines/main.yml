@@ -1,0 +1,88 @@
+name: myApp CICD
+
+trigger:
+  branches:
+    include:
+    - main
+    - rc/*
+    - release/*
+
+pool:
+  vmImage: ubuntu-latest
+
+
+resources:
+  repositories:
+    - repository: myApp
+      type: git
+      name: myApp  
+      ref: main  
+      trigger:
+        branches:
+          include:
+            - master  
+            - rc/* 
+            - release/*
+
+
+variables:
+- group: azureDevOpsPAT
+
+- name: project
+  value: 'myApp'
+
+- name: environment
+  ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/main') }}:
+    value: dev
+  ${{ elseif contains(variables['Build.SourceBranch'], 'rc/') }}:
+    value: rc      
+  ${{ elseif contains(variables['Build.SourceBranch'], 'release/') }}:
+    value: prod
+  ${{ else }}: 
+    value: dev
+
+- name: azureServicePrincipal
+  value: 'azureServicePrincipal'
+- name: acrServiceConnection
+  ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/main') }}:
+    value: myAppK8SDev
+  ${{ elseif contains(variables['Build.SourceBranch'], 'rc/') }}:
+    value: myAppK8SRC    
+  ${{ elseif contains(variables['Build.SourceBranch'], 'release/') }}:
+    value: myAppK8SProd
+  ${{ else }}: 
+    value: myAppK8SDev
+- name: pipelineURI
+  value: "$(System.CollectionUri)$(System.TeamProject)/_build?definitionId=$(System.DefinitionId)"
+- name: azureContainerRegistryLoginServer
+  ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/main') }}:
+    value: myappdevacr.azurecr.io
+  ${{ elseif contains(variables['Build.SourceBranch'], 'rc/') }}:
+    value: myapprcacr.azurecr.io      
+  ${{ elseif contains(variables['Build.SourceBranch'], 'release/') }}:
+    value: myappprodacr.azurecr.io
+  ${{ else }}: 
+    value: dev
+- name: azureContainerRegistryId
+  value: 'AzureAcrReourceId'
+- name: tag
+  value: $(Build.BuildId)
+
+stages:
+- template: CI/continuousIntegration.yml
+  parameters:
+    environment: $(environment)
+    azureServicePrincipal: $(azureServicePrincipal)
+    project: '$(project)$(environment)'
+    azureContainerRegistryLoginServer: $(azureContainerRegistryLoginServer)
+    azureContainerRegistryId: $(azureContainerRegistryId)
+
+    
+- template: CD/continuousDeployment.yml
+  parameters:
+    environment: $(environment)
+    project: '$(project)$(environment)'
+    azureDevOpsRepo: 'dev.azure.com/myApp/myApp/_git/IaC-Pipeline'
+    acrServiceConnection: $(acrServiceConnection)
+    azureContainerRegistryLoginServer: $(azureContainerRegistryLoginServer)
+    azureContainerRegistryId: $(azureContainerRegistryId)

@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: myApp
+  namespace: argocd
+spec:
+  destination:
+    namespace: myApp
+    server: 'https://kubernetes.default.svc'
+  source:
+    path: ArgoCD/applications/bookinfo
+    repoURL: >-
+      https://github.com/abdelrahman179/gitOps-CD
+    targetRevision: HEAD 
+  project: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - PrunePropagationPolicy=orphan
+      - ApplyOutOfSyncOnly=true
+      - CreateNamespace=true
+
